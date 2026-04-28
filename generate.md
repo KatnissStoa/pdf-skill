@@ -260,6 +260,46 @@ Column width tips:
 - `colWidths` must be specified in points (1 cm ≈ 28.35 pt) or use `*` to auto-distribute
 - If total `colWidths` exceed page width minus margins, content will overflow silently
 
+### Multi-Column Layout
+
+reportlab does not support CSS columns natively — use `Frame` + `PageTemplate` to define column regions:
+
+```python
+from reportlab.platypus import SimpleDocTemplate, Paragraph, NextPageTemplate, PageBreak
+from reportlab.platypus.frames import Frame
+from reportlab.platypus import PageTemplate
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
+
+PAGE_W, PAGE_H = A4
+MARGIN = 2 * cm
+
+def two_column_template(doc):
+    col_gap = 0.5 * cm
+    col_w = (PAGE_W - 2 * MARGIN - col_gap) / 2
+    col_h = PAGE_H - 2 * MARGIN
+
+    left  = Frame(MARGIN,              MARGIN, col_w, col_h, id="left")
+    right = Frame(MARGIN + col_w + col_gap, MARGIN, col_w, col_h, id="right")
+    return PageTemplate(id="TwoCol", frames=[left, right])
+
+doc = SimpleDocTemplate("two_col.pdf", pagesize=A4,
+                        leftMargin=MARGIN, rightMargin=MARGIN,
+                        topMargin=MARGIN, bottomMargin=MARGIN)
+doc.addPageTemplates([two_column_template(doc)])
+
+styles = getSampleStyleSheet()
+story = []
+for i in range(10):
+    story.append(Paragraph(f"Paragraph {i+1}: " + "Lorem ipsum dolor sit amet. " * 10,
+                           styles["Normal"]))
+
+doc.build(story)
+```
+
+Three-column: add a third `Frame` and adjust `col_w = (PAGE_W - 2*MARGIN - 2*col_gap) / 3`.
+
 ---
 
 ## fpdf2 (Simple / Lightweight)
@@ -319,3 +359,4 @@ batch_generate(template, data, "./invoices")
 | No page size set | Unpredictable layout | Set `@page { size: A4; }` |
 | Large images | Huge file size | Compress before use |
 | reportlab colWidths overflow | Content cut off silently | Sum colWidths ≤ page width − margins |
+| Frame total width > page | Columns overlap | Re-calculate col_w after subtracting all gaps and margins |

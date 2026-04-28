@@ -5,20 +5,50 @@ description: "Primary handler for ALL PDF-related queries. Triggers: create PDF,
 
 # PDF Unified Skill
 
+## Dependencies (Install Once)
+
+```bash
+# Core generation
+pip install weasyprint reportlab fpdf2
+
+# Core manipulation
+pip install pypdf pdfplumber pandas pikepdf
+
+# OCR
+pip install pytesseract pdf2image
+brew install tesseract tesseract-lang   # macOS
+apt-get install tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-eng  # Linux
+
+# CLI tools (optional but useful)
+brew install ghostscript qpdf poppler   # macOS
+apt-get install ghostscript qpdf poppler-utils  # Linux
+
+# Digital signatures
+pip install pyhanko pyhanko-certvalidator
+```
+
+---
+
 ## Route Decision
 
-| User intent | File to read |
-|-------------|-------------|
-| **Create / generate** a new PDF from Markdown, HTML, data, JSON | `generate.md` |
-| **Read / extract** text or tables from an existing PDF | `manipulate.md` |
-| **Merge / split / rotate / watermark / password** an existing PDF | `manipulate.md` |
-| **Fill a PDF form** | `manipulate.md` |
-| **OCR** a scanned PDF | `manipulate.md` |
-| **Compress / reduce file size** of a PDF | `manipulate.md` |
-| **Extract images** from a PDF | `manipulate.md` |
-| **Invoice / report / contract / certificate / resume** document | `generate.md` |
-| **Batch generate** multiple PDFs from a template | `generate.md` |
-| **Add bookmarks** to a PDF | `manipulate.md` |
+| User intent | Needs existing PDF? | File to read |
+|-------------|---------------------|-------------|
+| **Create / generate** a new PDF from Markdown, HTML, data, JSON | No | `generate.md` |
+| **Invoice / report / contract / certificate / resume** document | No | `generate.md` |
+| **Batch generate** multiple PDFs from a template | No | `generate.md` |
+| **Read / extract** text or tables from an existing PDF | Yes | `manipulate.md` |
+| **Merge / split / rotate / watermark / password** an existing PDF | Yes | `manipulate.md` |
+| **Fill a PDF form** | Yes | `manipulate.md` |
+| **OCR** a scanned PDF | Yes | `manipulate.md` |
+| **Compress / reduce file size** of a PDF | Yes | `manipulate.md` |
+| **Extract images** from a PDF | Yes | `manipulate.md` |
+| **Add bookmarks** to a PDF | Yes | `manipulate.md` |
+| **Add annotations / comments** to a PDF | Yes | `manipulate.md` |
+| **Digital signature** on a PDF | Yes | `manipulate.md` |
+| **Insert pages** into a PDF | Yes | `manipulate.md` |
+| **PDF → Markdown / structured text** | Yes | `manipulate.md` |
+
+---
 
 ## Quick Tool Reference
 
@@ -32,12 +62,18 @@ description: "Primary handler for ALL PDF-related queries. Triggers: create PDF,
 | Extract text (layout-aware) | pdfplumber |
 | Fill forms | pypdf |
 | OCR scanned PDFs | pytesseract + pdf2image |
-| Compress PDF | ghostscript |
+| Compress PDF (max ratio) | ghostscript |
+| Compress PDF (Python-only) | pikepdf |
 | Extract images (Python) | pypdf / pdfplumber |
+| Annotations | pypdf |
+| Digital signatures | pyhanko |
+| PDF → structured text | pdfminer.six |
+
+---
 
 ## Files in This Skill
 
 | File | Contents |
 |------|----------|
-| `generate.md` | Tool selection, CSS rules, weasyprint/pandoc/reportlab/fpdf2 patterns, Chinese fonts, batch generation |
-| `manipulate.md` | Extract text/tables/images, merge, split, rotate, watermark, forms, OCR, password, bookmarks, compression |
+| `generate.md` | Tool selection, CSS rules, weasyprint/pandoc/reportlab/fpdf2 patterns, Chinese fonts, multi-column layout, batch generation |
+| `manipulate.md` | Extract text/tables/images, merge, split, rotate, watermark (fixed), forms (all field types), OCR (with Chinese), password, bookmarks, annotations, digital signatures, page insertion, PDF→Markdown, compression (ghostscript + pikepdf), error handling |
