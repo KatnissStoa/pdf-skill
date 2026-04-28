@@ -63,6 +63,93 @@ if all_tables:
 
 ---
 
+## Extract Images
+
+### Python (pypdf)
+
+```python
+from pypdf import PdfReader
+
+reader = PdfReader("document.pdf")
+for page_num, page in enumerate(reader.pages):
+    for img_index, image in enumerate(page.images):
+        with open(f"page{page_num+1}_img{img_index+1}.{image.name.split('.')[-1]}", "wb") as f:
+            f.write(image.data)
+```
+
+### Python (pdfplumber — with position info)
+
+```python
+import pdfplumber
+
+with pdfplumber.open("document.pdf") as pdf:
+    for page_num, page in enumerate(pdf.pages):
+        for img_index, img in enumerate(page.images):
+            # img contains x0, y0, x1, y1, width, height, stream
+            print(f"Page {page_num+1} image {img_index+1}: "
+                  f"{img['width']}x{img['height']} at ({img['x0']:.0f}, {img['y0']:.0f})")
+```
+
+### Command-line (poppler)
+
+```bash
+pdfimages -j input.pdf output_prefix
+# Output: output_prefix-000.jpg, output_prefix-001.jpg, ...
+```
+
+---
+
+## Compress / Reduce File Size
+
+### ghostscript (recommended — best compression ratio)
+
+```bash
+# Screen quality (~72 dpi) — smallest file, good for email
+gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite \
+   -dPDFSETTINGS=/screen \
+   -sOutputFile=compressed.pdf input.pdf
+
+# Print quality (~300 dpi) — balanced
+gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite \
+   -dPDFSETTINGS=/printer \
+   -sOutputFile=compressed.pdf input.pdf
+
+# Prepress quality — minimal compression, maximum fidelity
+gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite \
+   -dPDFSETTINGS=/prepress \
+   -sOutputFile=compressed.pdf input.pdf
+```
+
+`-dPDFSETTINGS` levels: `/screen` < `/ebook` < `/printer` < `/prepress`
+
+Install ghostscript:
+```bash
+brew install ghostscript        # macOS
+apt-get install ghostscript     # Linux
+```
+
+### Python (pypdf — lossless only)
+
+pypdf can remove redundant objects but does not re-compress images. Use for modest size reduction without quality loss:
+
+```python
+from pypdf import PdfReader, PdfWriter
+
+reader = PdfReader("input.pdf")
+writer = PdfWriter()
+
+for page in reader.pages:
+    page.compress_content_streams()   # deflate page content streams
+    writer.add_page(page)
+
+writer.compress_identical_objects(remove_identicals=True, remove_orphans=True)
+
+with open("compressed.pdf", "wb") as f:
+    writer.write(f)
+```
+
+---
+
 ## Merge PDFs
 
 ```python
@@ -80,7 +167,7 @@ def merge_pdfs(input_files, output_file):
 merge_pdfs(["doc1.pdf", "doc2.pdf", "doc3.pdf"], "merged.pdf")
 ```
 
-Command-line alternative:
+Command-line:
 ```bash
 qpdf --empty --pages file1.pdf file2.pdf -- merged.pdf
 ```
@@ -111,7 +198,7 @@ def split_by_range(input_file, ranges, output_file):
         writer.write(f)
 ```
 
-Command-line alternative:
+Command-line:
 ```bash
 qpdf input.pdf --pages . 1-5 -- pages1-5.pdf
 ```
@@ -230,16 +317,6 @@ qpdf --password=mypassword --decrypt encrypted.pdf decrypted.pdf
 
 ---
 
-## Extract Images
-
-```bash
-# poppler-utils
-pdfimages -j input.pdf output_prefix
-# Output: output_prefix-000.jpg, output_prefix-001.jpg, ...
-```
-
----
-
 ## OCR Scanned PDFs
 
 ```python
@@ -279,6 +356,8 @@ print(f"Creator: {meta.creator}")
 | Task | Tool | Command |
 |------|------|---------|
 | Extract text | pdftotext | `pdftotext -layout input.pdf output.txt` |
+| Extract images | pdfimages | `pdfimages -j input.pdf prefix` |
+| Compress | ghostscript | `gs ... -dPDFSETTINGS=/ebook -sOutputFile=out.pdf in.pdf` |
 | Extract pages | qpdf | `qpdf input.pdf --pages . 1-5 -- out.pdf` |
 | Merge | qpdf | `qpdf --empty --pages f1.pdf f2.pdf -- merged.pdf` |
 | Rotate | qpdf | `qpdf input.pdf output.pdf --rotate=+90:1` |

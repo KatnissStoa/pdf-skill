@@ -84,6 +84,83 @@ After generating any PDF:
 
 ---
 
+## Chinese Font Handling
+
+Default fonts in weasyprint, reportlab, and fpdf2 do not include Chinese glyphs — always specify a CJK font explicitly or Chinese characters will render as boxes.
+
+### weasyprint
+
+```python
+from weasyprint import HTML, CSS
+
+# Option 1: reference a system font by name (macOS/Linux)
+css = CSS(string="""
+  @font-face {
+    font-family: 'NotoSansCJK';
+    src: url('/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc');
+  }
+  body { font-family: 'NotoSansCJK', sans-serif; }
+""")
+HTML(string=html).write_pdf("output.pdf", stylesheets=[css])
+
+# Option 2: reference a font file you ship with your project
+css = CSS(string="""
+  @font-face {
+    font-family: 'MyFont';
+    src: url('fonts/SourceHanSansSC-Regular.otf');
+  }
+  body { font-family: 'MyFont', sans-serif; }
+""")
+```
+
+Common free CJK fonts: Noto Sans CJK SC, Source Han Sans SC, WenQuanYi Micro Hei.
+
+Install on Linux:
+```bash
+apt-get install fonts-noto-cjk
+```
+
+### reportlab
+
+```python
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfgen import canvas
+
+# Register font once before use
+pdfmetrics.registerFont(TTFont('NotoSansCJK', 'NotoSansCJKsc-Regular.ttf'))
+
+c = canvas.Canvas("output.pdf")
+c.setFont('NotoSansCJK', 14)
+c.drawString(50, 800, "你好，世界")
+c.save()
+```
+
+With Platypus (document templates):
+```python
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.styles import ParagraphStyle
+
+style = ParagraphStyle('chinese', fontName='NotoSansCJK', fontSize=12)
+doc = SimpleDocTemplate("output.pdf")
+doc.build([Paragraph("你好，世界", style)])
+```
+
+### fpdf2
+
+```python
+from fpdf import FPDF
+
+pdf = FPDF()
+pdf.add_page()
+pdf.add_font("NotoSans", fname="NotoSansCJKsc-Regular.ttf")
+pdf.set_font("NotoSans", size=14)
+pdf.cell(text="你好，世界")
+pdf.output("output.pdf")
+```
+
+---
+
 ## weasyprint (Recommended Default)
 
 ```python
@@ -120,6 +197,8 @@ pandoc document.md -V geometry:margin=1in -o output.pdf
 
 ## reportlab (Programmatic / Data)
 
+### Basic Text
+
 ```python
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -137,25 +216,49 @@ c.drawString(2*cm, height - 5*cm, "Body text here...")
 c.save()
 ```
 
-Multi-page with Platypus:
+### Tables (TableStyle)
+
+reportlab tables use a completely different API from text — use `Table` + `TableStyle`:
 
 ```python
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
 
-doc = SimpleDocTemplate("report.pdf", pagesize=letter)
-styles = getSampleStyleSheet()
-story = []
+data = [
+    ["Name",  "Department", "Salary"],   # header row
+    ["Alice", "Engineering", "$120,000"],
+    ["Bob",   "Marketing",   "$95,000"],
+    ["Carol", "Design",      "$105,000"],
+]
 
-story.append(Paragraph("Report Title", styles['Title']))
-story.append(Spacer(1, 12))
-story.append(Paragraph("Body content " * 20, styles['Normal']))
-story.append(PageBreak())
-story.append(Paragraph("Page 2", styles['Heading1']))
+style = TableStyle([
+    # Header background
+    ("BACKGROUND",  (0, 0), (-1, 0),  colors.HexColor("#4472C4")),
+    ("TEXTCOLOR",   (0, 0), (-1, 0),  colors.white),
+    ("FONTNAME",    (0, 0), (-1, 0),  "Helvetica-Bold"),
+    # Body rows — alternating color
+    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#EEF2FF")]),
+    # Grid
+    ("GRID",        (0, 0), (-1, -1), 0.5, colors.grey),
+    # Padding
+    ("TOPPADDING",  (0, 0), (-1, -1), 6),
+    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+    # Alignment
+    ("ALIGN",       (2, 1), (-1, -1), "RIGHT"),   # right-align salary column
+])
 
-doc.build(story)
+table = Table(data, colWidths=[150, 150, 100])
+table.setStyle(style)
+
+doc = SimpleDocTemplate("table_report.pdf", pagesize=A4)
+doc.build([table])
 ```
+
+Column width tips:
+- `colWidths` must be specified in points (1 cm ≈ 28.35 pt) or use `*` to auto-distribute
+- If total `colWidths` exceed page width minus margins, content will overflow silently
 
 ---
 
@@ -210,7 +313,9 @@ batch_generate(template, data, "./invoices")
 
 | Trap | Consequence | Fix |
 |------|-------------|-----|
-| Missing fonts | Fallback to defaults | Use web-safe fonts |
+| Missing CJK font | Chinese renders as boxes | Register/specify font explicitly |
+| Missing fonts | Fallback to defaults | Use web-safe or bundled fonts |
 | Absolute image paths | Images missing | Use relative paths |
 | No page size set | Unpredictable layout | Set `@page { size: A4; }` |
 | Large images | Huge file size | Compress before use |
+| reportlab colWidths overflow | Content cut off silently | Sum colWidths ≤ page width − margins |
